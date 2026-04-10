@@ -13,3 +13,12 @@ enabled = true
 invocation_logs = true
 
 [observability.traces]
+
+[durable_objects]
+bindings = [
+  { name = "RATE_LIMITER", class_name = "UpstreamRateLimiter" }
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["UpstreamRateLimiter"]
