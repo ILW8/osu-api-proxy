@@ -19,7 +19,7 @@ export interface Env {
 
 const OSU_ORIGIN = "https://osu.ppy.sh";
 
-const ALLOWED_PREFIXES = ["/api/v2/", "/api/v2", "/oauth/token"];
+const ALLOWED_PREFIXES = ["/api/v2/", "/api/v2", "/oauth/token", "/api", "/api/"];
 
 const RATE_LIMIT = 5;
 const WINDOW_MS = 5_000;

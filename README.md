@@ -1,6 +1,6 @@
-# osu! API v2 Proxy (Cloudflare Worker)
+# osu! API Proxy (Cloudflare Worker)
 
-Deploy this proxy and point your google sheets to fix 429 issues when querying osu! api v2.
+Deploy this proxy and point your google sheets to fix 429 issues when querying the osu! API (v1 and v2).
 
 ## Quick Start
 
