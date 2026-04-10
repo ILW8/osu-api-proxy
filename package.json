@@ -1,0 +1,15 @@
+{
+  "name": "osu-api-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cloudflare Worker proxy for osu! API v2 — avoids shared-IP rate limiting from Google Apps Script",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260410.1",
+    "typescript": "^6.0.2",
+    "wrangler": "^4.81.1"
+  }
+}
