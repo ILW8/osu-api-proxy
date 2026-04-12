@@ -76,8 +76,6 @@ export default {
       }
     }
 
-    headers.set("X-Upstream-Target", target);
-
     const init: RequestInit = {
       method: request.method,
       headers,
@@ -88,18 +86,33 @@ export default {
       init.body = request.body;
     }
 
-    // queue request through durable object
+    // acquire a rate-limit slot from the durable object
     const id = env.RATE_LIMITER.idFromName("global");
     const stub = env.RATE_LIMITER.get(id);
-    return stub.fetch(new Request("https://rate-limiter.internal/proxy", init));
+    const slot = await stub.fetch(new Request("https://rate-limiter.internal/acquire"));
+    if (!slot.ok) {
+      return slot;
+    }
+
+    // make the upstream fetch from the worker (not the DO) so that
+    // runtime placement can influence the egress IP
+    try {
+      const upstream = await fetch(target, init);
+      return new Response(upstream.body, {
+        status: upstream.status,
+        statusText: upstream.statusText,
+        headers: upstream.headers,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return json(502, { error: "Failed to reach osu.ppy.sh", detail: msg });
+    }
   },
 };
 
 
 // durable object impl.
 interface QueueEntry {
-  target: string;
-  init: RequestInit;
   resolve: (response: Response) => void;
   enqueuedAt: number;
 }
@@ -109,29 +122,15 @@ export class UpstreamRateLimiter extends DurableObject<Env> {
   private queue: QueueEntry[] = [];
   private drainTimer: ReturnType<typeof setTimeout> | null = null;
 
-  override async fetch(request: Request): Promise<Response> {
-    const target = request.headers.get("X-Upstream-Target");
-    if (!target) return json(400, { error: "Missing X-Upstream-Target" });
-
-    const headers = new Headers(request.headers);
-    headers.delete("X-Upstream-Target");
-
-    const init: RequestInit = { method: request.method, headers, redirect: "follow" };
-
-    // need to buffer body, streams can only be read once and request may be queued
-    if (!["GET", "HEAD"].includes(request.method)) {
-      const buf = await request.arrayBuffer();
-      if (buf.byteLength > 0) init.body = buf;
-    }
-
+  override async fetch(_request: Request): Promise<Response> {
     this.pruneTimestamps();
     if (this.timestamps.length < RATE_LIMIT) {
-      return this.sendUpstream(target, init);
+      return this.grantSlot();
     }
 
-    // slow path (queue and wait)
+    // slow path (queue and wait for a slot)
     return new Promise<Response>((resolve) => {
-      const entry: QueueEntry = { target, init, resolve, enqueuedAt: Date.now() };
+      const entry: QueueEntry = { resolve, enqueuedAt: Date.now() };
       this.queue.push(entry);
 
       setTimeout(() => {
@@ -146,21 +145,9 @@ export class UpstreamRateLimiter extends DurableObject<Env> {
     });
   }
 
-  private async sendUpstream(target: string, init: RequestInit): Promise<Response> {
+  private grantSlot(): Response {
     this.timestamps.push(Date.now());
-    try {
-      const upstream = await fetch(target, init);
-      return new Response(upstream.body, {
-        status: upstream.status,
-        statusText: upstream.statusText,
-        headers: upstream.headers,
-      });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return json(502, { error: "Failed to reach osu.ppy.sh", detail: msg });
-    } finally {
-      this.ensureDrainScheduled();
-    }
+    return json(200, { status: "ok" });
   }
 
   private pruneTimestamps(): void {
@@ -186,7 +173,7 @@ export class UpstreamRateLimiter extends DurableObject<Env> {
     this.pruneTimestamps();
     while (this.queue.length > 0 && this.timestamps.length < RATE_LIMIT) {
       const entry = this.queue.shift()!;
-      this.sendUpstream(entry.target, entry.init).then(entry.resolve);
+      entry.resolve(this.grantSlot());
     }
     this.ensureDrainScheduled();
   }
