@@ -26,4 +26,4 @@ networks:
   proxy:
     driver: overlay
     driver_opts:
-      com.docker.network.driver.mtu: "1370"
+      com.docker.network.driver.mtu: "1230"
