@@ -21,8 +21,8 @@ http {
         ""      $arg_k;
     }
 
-    # Per-token rate limit: 30 req/min
-    limit_req_zone $rate_limit_key zone=per_token:10m rate=30r/m;
+    # Per-token rate limit: 60 req/min
+    limit_req_zone $rate_limit_key zone=per_token:10m rate=60r/m;
     limit_req_status 429;
 
     server {
@@ -34,7 +34,8 @@ http {
                 return 401;
             }
 
-            limit_req zone=per_token burst=5 nodelay;
+            # removed `nolimit` to allow queuing of requests
+            limit_req zone=per_token burst=30;
 
             # Forward to worker service (Swarm DNS resolves + load-balances)
             proxy_pass http://worker:8081;
