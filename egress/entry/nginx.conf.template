@@ -1,0 +1,44 @@
+worker_processes auto;
+error_log /dev/stderr warn;
+pid /tmp/nginx.pid;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    access_log /dev/stdout;
+
+    # Auth: validate X-Upstream-Proxy-Secret header
+    map $http_x_upstream_proxy_secret $auth_valid {
+        "${UPSTREAM_PROXY_SECRET}" 1;
+        default                    0;
+    }
+
+    # Rate-limit key: Authorization header (v2) or ?k= param (v1)
+    map $http_authorization $rate_limit_key {
+        default $http_authorization;
+        ""      $arg_k;
+    }
+
+    # Per-token rate limit: 30 req/min
+    limit_req_zone $rate_limit_key zone=per_token:10m rate=30r/m;
+    limit_req_status 429;
+
+    server {
+        listen 8080;
+
+        location / {
+            # Reject requests with missing/invalid proxy secret
+            if ($auth_valid = 0) {
+                return 401;
+            }
+
+            limit_req zone=per_token burst=5 nodelay;
+
+            # Forward to worker service (Swarm DNS resolves + load-balances)
+            proxy_pass http://worker:8081;
+            proxy_set_header Host $host;
+        }
+    }
+}
