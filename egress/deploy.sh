@@ -43,12 +43,10 @@ update_worker() {
 }
 
 update_monitoring() {
-    echo "==> Recreating monitoring stack..."
-    docker stack rm osu-monitoring 2>/dev/null || true
-    # Wait for services to drain before redeploying
-    echo "==> Waiting for old services to stop..."
-    while docker stack ps osu-monitoring >/dev/null 2>&1; do sleep 1; done
-    docker stack deploy -c monitoring/stack.yml osu-monitoring
+    echo "==> Updating monitoring stack..."
+    docker stack deploy --resolve-image always -c monitoring/stack.yml osu-monitoring
+    docker service update --force osu-monitoring_prometheus
+    docker service update --force osu-monitoring_grafana
 }
 
 case "${1:-}" in

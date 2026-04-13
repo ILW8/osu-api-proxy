@@ -7,18 +7,34 @@ services:
       - "8080:8080"
     environment:
       - UPSTREAM_PROXY_SECRET=${UPSTREAM_PROXY_SECRET:?UPSTREAM_PROXY_SECRET must be set}
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://localhost:8404/metrics"]
+      interval: 5s
+      timeout: 3s
+      retries: 2
     deploy:
       replicas: 1
       placement:
         constraints:
           - node.labels.public == true
+      update_config:
+        order: start-first
+        failure_action: rollback
     networks:
       - proxy
 
   worker:
     image: ${REGISTRY:-localhost:5000}/osu-proxy-worker:latest
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://localhost:8404/metrics"]
+      interval: 5s
+      timeout: 3s
+      retries: 2
     deploy:
       mode: global
+      update_config:
+        order: start-first
+        failure_action: rollback
     networks:
       - proxy
 

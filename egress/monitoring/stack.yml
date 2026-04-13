@@ -10,11 +10,19 @@ services:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
       - '--storage.tsdb.retention.time=30d'
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://localhost:9090/-/healthy"]
+      interval: 5s
+      timeout: 3s
+      retries: 2
     deploy:
       replicas: 1
       placement:
         constraints:
           - node.role == manager
+      update_config:
+        order: start-first
+        failure_action: rollback
     networks:
       - proxy
 
@@ -28,11 +36,19 @@ services:
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
       - GF_USERS_ALLOW_SIGN_UP=false
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://localhost:3000/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 2
     deploy:
       replicas: 1
       placement:
         constraints:
           - node.role == manager
+      update_config:
+        order: start-first
+        failure_action: rollback
     networks:
       - proxy
 
