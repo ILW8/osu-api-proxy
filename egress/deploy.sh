@@ -45,6 +45,9 @@ update_worker() {
 update_monitoring() {
     echo "==> Updating monitoring stack..."
     docker stack deploy -c monitoring/stack.yml osu-monitoring
+    echo "==> Restarting monitoring services to pick up config changes..."
+    docker service update --force osu-monitoring_prometheus
+    docker service update --force osu-monitoring_grafana
 }
 
 case "${1:-}" in
