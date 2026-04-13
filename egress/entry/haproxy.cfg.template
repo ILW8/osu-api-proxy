@@ -41,4 +41,5 @@ frontend entry
     default_backend workers
 
 backend workers
+    option http-server-close
     server worker worker:8081 check inter 5s
