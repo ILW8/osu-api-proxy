@@ -26,7 +26,7 @@
       },
       "targets": [
         {
-          "expr": "rate(haproxy_frontend_http_requests_total{proxy=\"entry\"}[5m])",
+          "expr": "rate(haproxy_frontend_http_requests_total{proxy=\"entry\"}[15s])",
           "legendFormat": "entry requests/s",
           "refId": "A"
         }
@@ -51,7 +51,7 @@
       },
       "targets": [
         {
-          "expr": "rate(haproxy_frontend_http_requests_total{proxy=\"worker\"}[5m])",
+          "expr": "rate(haproxy_frontend_http_requests_total{proxy=\"worker\"}[15s])",
           "legendFormat": "{{instance}}",
           "refId": "A"
         }
@@ -76,7 +76,7 @@
       },
       "targets": [
         {
-          "expr": "rate(haproxy_frontend_denied_req_total{proxy=\"entry\"}[5m])",
+          "expr": "rate(haproxy_frontend_denied_req_total{proxy=\"entry\"}[15s])",
           "legendFormat": "rate-limited/s",
           "refId": "A"
         }
@@ -101,7 +101,7 @@
       },
       "targets": [
         {
-          "expr": "rate(haproxy_frontend_denied_req_total{proxy=\"worker\"}[5m])",
+          "expr": "rate(haproxy_frontend_denied_req_total{proxy=\"worker\"}[15s])",
           "legendFormat": "{{instance}}",
           "refId": "A"
         }
@@ -126,7 +126,7 @@
       },
       "targets": [
         {
-          "expr": "rate(haproxy_frontend_http_responses_total{proxy=\"entry\",code=\"4xx\"}[5m]) - rate(haproxy_frontend_denied_req_total{proxy=\"entry\"}[5m])",
+          "expr": "rate(haproxy_frontend_http_responses_total{proxy=\"entry\",code=\"4xx\"}[15s]) - rate(haproxy_frontend_denied_req_total{proxy=\"entry\"}[15s])",
           "legendFormat": "auth failures/s",
           "refId": "A"
         }
