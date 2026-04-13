@@ -23,8 +23,9 @@ core.register_action("throttle", {"http-req"}, function(txn)
     end
 
     delay = math.min(delay, MAX_DELAY)
-    if delay >= 0.05 then
-        txn:set_var("txn.throttle_delay_ms", math.floor(delay * 1000))
-        core.sleep(delay)
+    local delay_ms = math.floor(delay * 1000)
+    if delay_ms >= 50 then
+        txn:set_var("txn.throttle_delay_ms", delay_ms)
+        core.msleep(delay_ms)
     end
 end)
