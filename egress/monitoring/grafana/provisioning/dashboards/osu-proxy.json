@@ -111,7 +111,7 @@
       "title": "Entry — 4xx Response Rate",
       "description": "All 4xx responses from the entry proxy (auth failures + rate limit denials)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
@@ -133,10 +133,47 @@
       ]
     },
     {
+      "title": "Workers — Rate Limit Utilization",
+      "description": "Percentage of each worker's global rate limit currently used (threshold: 130 req/60s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": { "mode": "palette-classic" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 60 },
+              { "color": "red", "value": 85 }
+            ]
+          },
+          "custom": {
+            "thresholdsStyle": { "mode": "line" }
+          },
+          "max": 120
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single" }
+      },
+      "targets": [
+        {
+          "expr": "rate(haproxy_frontend_http_requests_total{proxy=\"worker\"}[15s]) * 60 / 130 * 100",
+          "legendFormat": "{{instance}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
       "title": "Backend — Response Time",
       "description": "Average response time from osu.ppy.sh upstream",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
