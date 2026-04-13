@@ -8,6 +8,6 @@ fi
 
 envsubst '${UPSTREAM_PROXY_SECRET}' \
     < /usr/local/etc/haproxy/haproxy.cfg.template \
-    > /usr/local/etc/haproxy/haproxy.cfg
+    > /tmp/haproxy.cfg
 
-exec haproxy -f /usr/local/etc/haproxy/haproxy.cfg
+exec haproxy -f /tmp/haproxy.cfg

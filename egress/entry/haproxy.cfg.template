@@ -30,8 +30,7 @@ frontend entry
 
     # 2. Auth: return 401 if secret is missing/wrong (uses "return" so it does NOT
     #    increment denied_req_total — lets us separate auth failures from rate-limit hits)
-    http-request return status 401 content-type "text/plain" string "Unauthorized\n" \
-        unless { hdr(X-Upstream-Proxy-Secret) -m str "${UPSTREAM_PROXY_SECRET}" }
+    http-request return status 401 content-type "text/plain" string "Unauthorized\n" unless { hdr(X-Upstream-Proxy-Secret) -m str "${UPSTREAM_PROXY_SECRET}" }
 
     # 3. Track per-token rate (only reached by authenticated requests)
     http-request track-sc0 var(txn.rate_key) table per_token_rates
