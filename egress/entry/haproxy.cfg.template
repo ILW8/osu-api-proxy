@@ -28,14 +28,13 @@ frontend entry
     http-request set-var(txn.rate_key) hdr(Authorization)
     http-request set-var(txn.rate_key) url_param(k) if !{ var(txn.rate_key) -m found }
 
-    # 2. Auth: return 401 if secret is missing/wrong (uses "return" so it does NOT
-    #    increment denied_req_total — lets us separate auth failures from rate-limit hits)
-    http-request return status 401 content-type "text/plain" string "Unauthorized\n" unless { hdr(X-Upstream-Proxy-Secret) -m str "${UPSTREAM_PROXY_SECRET}" }
+    # 2. Auth: reject if secret is missing/wrong
+    http-request deny deny_status 401 unless { hdr(X-Upstream-Proxy-Secret) -m str "${UPSTREAM_PROXY_SECRET}" }
 
     # 3. Track per-token rate (only reached by authenticated requests)
     http-request track-sc0 var(txn.rate_key) table per_token_rates
 
-    # 4. Rate limit: deny 429 (increments denied_req_total)
+    # 4. Rate limit
     http-request deny deny_status 429 if { sc_http_req_rate(0,per_token_rates) gt 90 }
 
     default_backend workers

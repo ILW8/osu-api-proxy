@@ -58,8 +58,8 @@
       ]
     },
     {
-      "title": "Entry — Rate Limit Denials",
-      "description": "Requests denied by per-token rate limit (429s). Uses denied_req_total which only counts http-request deny, not auth returns.",
+      "title": "Entry — Denied Requests",
+      "description": "Requests denied at the entry proxy (auth failures + rate limit hits)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
@@ -77,7 +77,7 @@
       "targets": [
         {
           "expr": "rate(haproxy_frontend_denied_req_total{proxy=\"entry\"}[15s])",
-          "legendFormat": "rate-limited/s",
+          "legendFormat": "denied/s",
           "refId": "A"
         }
       ]
@@ -108,8 +108,8 @@
       ]
     },
     {
-      "title": "Entry — Auth Failures (401s)",
-      "description": "Requests rejected for invalid/missing proxy secret. Derived from 4xx total minus denied_req (which only counts rate limits).",
+      "title": "Entry — 4xx Response Rate",
+      "description": "All 4xx responses from the entry proxy (auth failures + rate limit denials)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
@@ -126,8 +126,8 @@
       },
       "targets": [
         {
-          "expr": "rate(haproxy_frontend_http_responses_total{proxy=\"entry\",code=\"4xx\"}[15s]) - rate(haproxy_frontend_denied_req_total{proxy=\"entry\"}[15s])",
-          "legendFormat": "auth failures/s",
+          "expr": "rate(haproxy_frontend_http_responses_total{proxy=\"entry\",code=\"4xx\"}[15s])",
+          "legendFormat": "4xx/s",
           "refId": "A"
         }
       ]
