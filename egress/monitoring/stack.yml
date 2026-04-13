@@ -21,7 +21,7 @@ services:
         constraints:
           - node.role == manager
       update_config:
-        order: start-first
+        order: stop-first
         failure_action: rollback
     networks:
       - proxy
