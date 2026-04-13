@@ -25,6 +25,11 @@ backend per_token_rates
 frontend entry
     bind *:8080
 
+    # 0. Path filtering: only allow /api/* and /oauth/token*
+    acl path_allowed path /api /oauth/token
+    acl path_allowed path_beg /api/ /oauth/token/
+    http-request deny deny_status 403 unless path_allowed
+
     # 1. Extract rate-limit key: Authorization header, fallback to ?k= param
     http-request set-var(txn.rate_key) hdr(Authorization)
     http-request set-var(txn.rate_key) url_param(k) if !{ var(txn.rate_key) -m found }
