@@ -59,7 +59,7 @@
     },
     {
       "title": "Entry — Denied Requests",
-      "description": "Requests denied at the entry proxy (auth failures + rate limit hits)",
+      "description": "Requests denied at the entry proxy (auth 401s + path 403s). Rate-limit denials replaced by throttling.",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
@@ -108,10 +108,79 @@
       ]
     },
     {
-      "title": "Entry — Response Codes (via mtail)",
-      "description": "Per-status-code response count in 15 s windows from HAProxy access logs. Separates 401 (auth) from 429 (rate limit) and 200 (success).",
+      "title": "Entry — Throttled Requests",
+      "description": "Requests per second delayed by Lua throttle (rate exceeded 60 req/60s sustained limit)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "color": { "fixedColor": "orange", "mode": "fixed" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single" }
+      },
+      "targets": [
+        {
+          "expr": "rate(haproxy_throttled_requests_total{frontend=\"entry\"}[15s])",
+          "legendFormat": "throttled/s",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Entry — Throttle Delay (via mtail)",
+      "description": "p50 and p95 Lua throttle delay injected at the entry proxy when per-token rate exceeds sustained limit",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byRegexp", "options": ".*p50$" },
+            "properties": [
+              { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } },
+              { "id": "custom.lineWidth", "value": 1 }
+            ]
+          },
+          {
+            "matcher": { "id": "byRegexp", "options": ".*p95$" },
+            "properties": [
+              { "id": "custom.lineWidth", "value": 2 }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, rate(haproxy_throttle_delay_milliseconds_bucket{frontend=\"entry\"}[15s]))",
+          "legendFormat": "entry p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, rate(haproxy_throttle_delay_milliseconds_bucket{frontend=\"entry\"}[15s]))",
+          "legendFormat": "entry p95",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "title": "Entry — Response Codes (via mtail)",
+      "description": "Per-status-code response count in 15 s windows from HAProxy access logs",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
@@ -143,7 +212,7 @@
       "title": "Workers — Response Codes (via mtail)",
       "description": "Per-status-code response count in 15 s windows across all workers",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
@@ -212,7 +281,7 @@
       "title": "Response Duration per Worker (via mtail)",
       "description": "Per-worker request duration from HAProxy access logs (Ta field). Solid lines = p95, dashed = p50.",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {

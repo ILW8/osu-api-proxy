@@ -2,6 +2,7 @@ global
     log stdout format raw local0 info
     log /dev/log local0 info
     maxconn 1024
+    lua-load /usr/local/etc/haproxy/throttle.lua
 
 defaults
     log     global
@@ -27,7 +28,7 @@ frontend entry
 
     # Sanitize URI for logging (redact k= token value)
     http-request set-var(txn.log_uri) url,regsub("[?]k=[^&]*","?k=REDACTED"),regsub("&k=[^&]*","&k=REDACTED")
-    log-format "%ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs \"%HM %[var(txn.log_uri)] %HV\""
+    log-format "%ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs \"%HM %[var(txn.log_uri)] %HV\" throttle_ms=%[var(txn.throttle_delay_ms)]"
 
     # 0. Path filtering: only allow /api/* and /oauth/token*
     acl path_allowed path /api /oauth/token
@@ -44,8 +45,10 @@ frontend entry
     # 3. Track per-token rate (only reached by authenticated requests)
     http-request track-sc0 var(txn.rate_key) table per_token_rates
 
-    # 4. Rate limit
-    http-request deny deny_status 429 if { sc_http_req_rate(0,per_token_rates) gt 90 }
+    # 4. Throttle: progressively delay requests that exceed sustained rate
+    http-request set-var(txn.throttle_delay_ms) int(0)
+    http-request set-var(txn.current_rate) sc_http_req_rate(0,per_token_rates)
+    http-request lua.throttle if { sc_http_req_rate(0,per_token_rates) gt 60 }
 
     default_backend workers
 

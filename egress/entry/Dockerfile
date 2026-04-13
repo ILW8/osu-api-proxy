@@ -9,6 +9,7 @@ RUN apk add --no-cache gettext && \
     rm -rf /tmp/mtail* && \
     mkdir -p /etc/mtail
 COPY haproxy.cfg.template /usr/local/etc/haproxy/haproxy.cfg.template
+COPY throttle.lua /usr/local/etc/haproxy/throttle.lua
 COPY haproxy.mtail /etc/mtail/haproxy.mtail
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
