@@ -1,15 +1,6 @@
 #!/bin/sh
 set -e
 
-if [ -z "$UPSTREAM_PROXY_SECRET" ]; then
-    echo "ERROR: UPSTREAM_PROXY_SECRET is not set" >&2
-    exit 1
-fi
-
-envsubst '${UPSTREAM_PROXY_SECRET}' \
-    < /usr/local/etc/haproxy/haproxy.cfg.template \
-    > /tmp/haproxy.cfg
-
 # Start syslogd to capture HAProxy logs for mtail
 mkdir -p /var/log
 touch /var/log/haproxy.log
@@ -19,4 +10,4 @@ sleep 1
 # Start mtail to extract per-status-code metrics from logs
 mtail --progs /etc/mtail --logs /var/log/haproxy.log --port 3903 &
 
-exec haproxy -f /tmp/haproxy.cfg
+exec haproxy -f /usr/local/etc/haproxy/haproxy.cfg

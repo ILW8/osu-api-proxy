@@ -1,0 +1,10 @@
+# Extract per-status-code metrics from HAProxy httplog lines.
+# Runs via mtail, fed by syslogd capturing HAProxy's syslog output.
+
+counter haproxy_http_responses_total by frontend, status
+
+# HAProxy httplog (after syslog prefix):
+#   client:port [DD/Mon/YYYY:HH:MM:SS.mmm] frontend backend/server TR/Tw/Tc/Tr/Ta status ...
+/\S+:\d+ \[\d+\/\w+\/\d+:\d+:\d+:\d+\.\d+\] (?P<frontend>\S+) \S+\/\S+ \S+ (?P<status>\d{3}) / {
+    haproxy_http_responses_total[$frontend][$status]++
+}
