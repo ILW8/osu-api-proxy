@@ -132,7 +132,7 @@
       },
       "targets": [
         {
-          "expr": "increase(haproxy_http_responses_total{frontend=\"entry\"}[15s]) > 0",
+          "expr": "(haproxy_http_responses_total{frontend=\"entry\"} - haproxy_http_responses_total{frontend=\"entry\"} offset 15s) > 0",
           "legendFormat": "{{status}}",
           "interval": "15s",
           "refId": "A"
@@ -164,7 +164,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (status) (increase(haproxy_http_responses_total{frontend=\"worker\"}[15s])) > 0",
+          "expr": "sum by (status) (haproxy_http_responses_total{frontend=\"worker\"} - haproxy_http_responses_total{frontend=\"worker\"} offset 15s) > 0",
           "legendFormat": "{{status}}",
           "interval": "15s",
           "refId": "A"
