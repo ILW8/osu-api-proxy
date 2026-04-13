@@ -34,12 +34,12 @@ build_worker() {
 
 update_entry() {
     echo "==> Updating entry service..."
-    docker service update --with-registry-auth --image "$REGISTRY/osu-proxy-entry:latest" "${STACK_NAME}_entry"
+    docker service update --with-registry-auth --force --image "$REGISTRY/osu-proxy-entry:latest" "${STACK_NAME}_entry"
 }
 
 update_worker() {
     echo "==> Updating worker service..."
-    docker service update --with-registry-auth --image "$REGISTRY/osu-proxy-worker:latest" "${STACK_NAME}_worker"
+    docker service update --with-registry-auth --force --image "$REGISTRY/osu-proxy-worker:latest" "${STACK_NAME}_worker"
 }
 
 update_monitoring() {
