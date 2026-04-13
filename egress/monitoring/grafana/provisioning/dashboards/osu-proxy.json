@@ -209,8 +209,8 @@
       ]
     },
     {
-      "title": "Response Duration (via mtail)",
-      "description": "Request duration percentiles from HAProxy access logs (Ta field — total active time)",
+      "title": "Response Duration per Worker (via mtail)",
+      "description": "Per-worker request duration from HAProxy access logs (Ta field). Solid lines = p95, dashed = p50.",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
@@ -219,7 +219,21 @@
           "unit": "ms",
           "color": { "mode": "palette-classic" }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": { "id": "byRegexp", "options": ".*p50$" },
+            "properties": [
+              { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } },
+              { "id": "custom.lineWidth", "value": 1 }
+            ]
+          },
+          {
+            "matcher": { "id": "byRegexp", "options": ".*p95$" },
+            "properties": [
+              { "id": "custom.lineWidth", "value": 2 }
+            ]
+          }
+        ]
       },
       "options": {
         "legend": { "displayMode": "list", "placement": "bottom" },
@@ -227,19 +241,14 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.5, sum by (le) (rate(haproxy_http_duration_milliseconds_bucket{frontend=\"worker\"}[15s])))",
-          "legendFormat": "p50",
+          "expr": "histogram_quantile(0.5, sum by (le, instance) (rate(haproxy_http_duration_milliseconds_bucket{frontend=\"worker\"}[15s])))",
+          "legendFormat": "{{instance}} p50",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(haproxy_http_duration_milliseconds_bucket{frontend=\"worker\"}[15s])))",
-          "legendFormat": "p95",
+          "expr": "histogram_quantile(0.95, sum by (le, instance) (rate(haproxy_http_duration_milliseconds_bucket{frontend=\"worker\"}[15s])))",
+          "legendFormat": "{{instance}} p95",
           "refId": "B"
-        },
-        {
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(haproxy_http_duration_milliseconds_bucket{frontend=\"worker\"}[15s])))",
-          "legendFormat": "p99",
-          "refId": "C"
         }
       ]
     }
