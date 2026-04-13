@@ -25,6 +25,10 @@ backend per_token_rates
 frontend entry
     bind *:8080
 
+    # Sanitize URI for logging (redact k= token value)
+    http-request set-var(txn.log_uri) url,regsub("[?]k=[^&]*","?k=REDACTED"),regsub("&k=[^&]*","&k=REDACTED")
+    log-format "%ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs \"%HM %[var(txn.log_uri)] %HV\""
+
     # 0. Path filtering: only allow /api/* and /oauth/token*
     acl path_allowed path /api /oauth/token
     acl path_allowed path_beg /api/ /oauth/token/
