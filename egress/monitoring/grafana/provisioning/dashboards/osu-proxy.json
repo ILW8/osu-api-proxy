@@ -109,17 +109,19 @@
     },
     {
       "title": "Entry — Response Codes (via mtail)",
-      "description": "Per-status-code response rate from HAProxy access logs. Separates 401 (auth) from 429 (rate limit) and 200 (success).",
+      "description": "Per-status-code response count in 15 s windows from HAProxy access logs. Separates 401 (auth) from 429 (rate limit) and 200 (success).",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps",
+          "unit": "short",
           "color": { "mode": "palette-classic" },
           "custom": {
-            "stacking": { "mode": "normal" },
-            "fillOpacity": 20
+            "drawStyle": "bars",
+            "barAlignment": 0,
+            "fillOpacity": 80,
+            "stacking": { "mode": "normal" }
           }
         },
         "overrides": []
@@ -130,25 +132,28 @@
       },
       "targets": [
         {
-          "expr": "rate(haproxy_http_responses_total{frontend=\"entry\"}[15s]) > 0",
+          "expr": "increase(haproxy_http_responses_total{frontend=\"entry\"}[15s]) > 0",
           "legendFormat": "{{status}}",
+          "interval": "15s",
           "refId": "A"
         }
       ]
     },
     {
       "title": "Workers — Response Codes (via mtail)",
-      "description": "Per-status-code response rate across all workers",
+      "description": "Per-status-code response count in 15 s windows across all workers",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps",
+          "unit": "short",
           "color": { "mode": "palette-classic" },
           "custom": {
-            "stacking": { "mode": "normal" },
-            "fillOpacity": 20
+            "drawStyle": "bars",
+            "barAlignment": 0,
+            "fillOpacity": 80,
+            "stacking": { "mode": "normal" }
           }
         },
         "overrides": []
@@ -159,8 +164,9 @@
       },
       "targets": [
         {
-          "expr": "sum by (status) (rate(haproxy_http_responses_total{frontend=\"worker\"}[15s])) > 0",
+          "expr": "sum by (status) (increase(haproxy_http_responses_total{frontend=\"worker\"}[15s])) > 0",
           "legendFormat": "{{status}}",
+          "interval": "15s",
           "refId": "A"
         }
       ]
