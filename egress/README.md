@@ -1,17 +1,24 @@
 # Egress Proxy Infrastructure
 
-Two-tier Nginx proxy deployed via Docker Swarm. Routes osu! API requests through
-dedicated egress IPs instead of Cloudflare's shared pool.
+Two-tier HAProxy proxy deployed via Docker Swarm. Routes osu! API requests through
+dedicated egress IPs instead of Cloudflare's shared pool. Includes Prometheus metrics
+and Grafana dashboards for observability.
 
 ```
-CF Worker --> entry proxy (auth + per-token rate limit) --> worker proxy (global rate limit) --> osu.ppy.sh
+CF Worker --> entry HAProxy (auth + per-token rate limit) --> worker HAProxy (global rate limit) --> osu.ppy.sh
+                 :8404 /metrics                                   :8404 /metrics
+                        \                                        /
+                         `-----> Prometheus -----> Grafana :3000
 ```
 
 - **Entry service**: Pinned to nodes with a public IP. Validates `X-Upstream-Proxy-Secret`,
-  rate-limits at 30 req/min per osu! API token (keyed on `Authorization` header for API v2,
+  rate-limits at 90 req/min per osu! API token (keyed on `Authorization` header for API v2,
   `?k=` query param for API v1). Forwards to the worker service via Swarm overlay network.
-- **Worker service**: Runs on every swarm node (`mode: global`). Enforces 120 req/min global
-  rate limit per worker, then forwards to `osu.ppy.sh`. Each node uses its own egress IP.
+- **Worker service**: Runs on every swarm node (`mode: global`). Enforces 130 req/min global
+  rate limit per worker, then forwards to `osu.ppy.sh` over TLS with SNI. Each node uses
+  its own egress IP.
+- **Monitoring**: Prometheus scrapes HAProxy metrics from all proxies. Grafana provides
+  dashboards for request rates, rate-limit denials, and backend response times.
 
 ## Prerequisites
 
@@ -32,24 +39,24 @@ docker swarm join --advertise-addr <vpn-ip> --token <token> <manager-vpn-ip>:237
 Bind to VPN interface IPs -- never expose swarm ports to the public internet. Swarm uses
 mutual TLS, but defense in depth means keeping management traffic on the private network.
 
-### Overlay Network MTU on VPN
+### Overlay Network Setup
 
-Docker's overlay network defaults to MTU 1450. VPN tunnels already reduce the link MTU
-(Tailscale/WireGuard typically ~1280), so the VXLAN encapsulation overhead (50 bytes)
-pushes packets over the limit. Symptom: DNS resolution works between containers but HTTP
-requests to containers on other nodes time out (small packets fit, large packets are
-silently dropped).
-
-The `stack.yml` sets the overlay MTU to 1230 to account for this (Tailscale MTU 1280
-minus 50 bytes VXLAN overhead). If your VPN uses a different MTU, adjust the formula:
-`overlay MTU = VPN MTU - 50`. Check your VPN MTU with `ip link show tailscale0` (or
-your VPN interface). Adjust `com.docker.network.driver.mtu` in the stack file accordingly. Note: MTU cannot be changed on an existing overlay network -- you must
-remove and redeploy the stack:
+The proxy and monitoring stacks share a manually-created overlay network. This decouples
+the network lifecycle from either stack -- either can be torn down and redeployed without
+breaking the other.
 
 ```bash
-docker stack rm osu-proxy
-docker stack deploy -c stack.yml osu-proxy --with-registry-auth
+docker network create -d overlay --attachable \
+    --opt com.docker.network.driver.mtu=1230 \
+    osu-proxy
 ```
+
+The MTU is set to 1230 to account for VPN tunnel overhead (Tailscale MTU 1280 minus 50
+bytes VXLAN overhead). If your VPN uses a different MTU, adjust: `overlay MTU = VPN MTU - 50`.
+Check your VPN MTU with `ip link show tailscale0`.
+
+**Note:** MTU cannot be changed on an existing overlay network. To change it, remove the
+network (after tearing down both stacks) and recreate it.
 
 ### Tailscale + Docker DNS Conflict
 
@@ -71,9 +78,6 @@ service VIP name does not.
 ```
 
 Then restart Docker: `sudo systemctl restart docker`.
-
-This prevents the Tailscale search domain from leaking into containers. Containers lose
-the ability to resolve Tailscale MagicDNS names, but swarm services don't need that.
 
 See: https://github.com/tailscale/tailscale/issues/12108,
 https://github.com/moby/moby/issues/41819
@@ -103,7 +107,15 @@ docker push <registry>/osu-proxy-worker:latest
 
 ## Deploying
 
-### 1. Label the public-facing node
+### 1. Create the overlay network (if not already created)
+
+```bash
+docker network create -d overlay --attachable \
+    --opt com.docker.network.driver.mtu=1230 \
+    osu-proxy
+```
+
+### 2. Label the public-facing node
 
 ```bash
 docker node ls
@@ -112,7 +124,7 @@ docker node update --label-add public=true <node-id>
 
 The entry service is constrained to nodes with this label.
 
-### 2. Deploy the stack
+### 3. Deploy the proxy stack
 
 ```bash
 export UPSTREAM_PROXY_SECRET="$(openssl rand -hex 32)"
@@ -125,11 +137,20 @@ The `--with-registry-auth` flag is required when using a private registry. It di
 the manager's registry credentials to worker nodes via the Swarm raft log. Without it,
 worker nodes fail to pull images even if they are individually authenticated.
 
-### 3. Verify
+### 4. Deploy the monitoring stack
+
+```bash
+cd monitoring
+export GRAFANA_ADMIN_PASSWORD="your-secure-password"
+docker stack deploy -c stack.yml osu-monitoring
+```
+
+### 5. Verify
 
 ```bash
 # Check all replicas are running
 docker stack services osu-proxy
+docker stack services osu-monitoring
 
 # Check per-node status and error messages
 docker service ps osu-proxy_worker --no-trunc
@@ -140,7 +161,7 @@ docker service logs osu-proxy_entry
 docker service logs osu-proxy_worker
 ```
 
-### 4. Test
+### 6. Test
 
 ```bash
 # Should return 401 (no proxy secret)
@@ -151,7 +172,49 @@ curl -v \
   -H "X-Upstream-Proxy-Secret: $UPSTREAM_PROXY_SECRET" \
   -H "Authorization: Bearer <osu-token>" \
   http://<entry-ip>:8080/api/v2/me
+
+# Check Prometheus metrics endpoint
+curl http://<entry-ip>:8404/metrics
 ```
+
+## Monitoring
+
+### Prometheus
+
+Prometheus scrapes HAProxy metrics from both the entry and worker services using Docker
+Swarm DNS service discovery (`tasks.<stack>_<service>` resolves to individual container IPs).
+
+Targets are configured in `monitoring/prometheus/prometheus.yml`. The `tasks.*` names
+depend on the proxy stack name used at deploy time. If you deployed with a name other
+than `osu-proxy`, update the DNS names accordingly.
+
+### Grafana
+
+Grafana is accessible on port 3000. The default credentials are `admin` / the value of
+`GRAFANA_ADMIN_PASSWORD` (defaults to `admin` if not set).
+
+A pre-provisioned dashboard ("osu! API Proxy") is available in the `osu-proxy` folder
+with these panels:
+
+- **Entry Request Rate**: Total requests/s hitting the entry proxy
+- **Workers Request Rate**: Per-worker requests/s (one line per swarm node)
+- **Entry Rate Limit Denials**: Per-token rate limit hits (429s) at the entry
+- **Workers Rate Limit Denials**: Per-worker global rate limit hits (429s)
+- **Entry Auth Failures**: Requests rejected for invalid proxy secret (401s)
+- **Backend Response Time**: Average upstream response time from osu.ppy.sh
+
+**Metric separation:** Auth failures use `http-request return` (not counted in
+`denied_req_total`), while rate-limit denials use `http-request deny` (counted in
+`denied_req_total`). This allows clean separation in Grafana queries.
+
+### Prometheus Metric Reference
+
+| Metric | Description |
+|---|---|
+| `haproxy_frontend_http_requests_total` | Total HTTP requests per frontend |
+| `haproxy_frontend_denied_req_total` | Requests denied by ACLs (rate limits only, not auth) |
+| `haproxy_frontend_http_responses_total{code="4xx"}` | All 4xx responses (auth failures + rate limits) |
+| `haproxy_backend_response_time_average_seconds` | Average backend response time |
 
 ## TLS with Cloudflare Tunnel
 
@@ -217,6 +280,24 @@ Or redeploy the entire stack:
 docker stack deploy -c stack.yml osu-proxy --with-registry-auth
 ```
 
+## HAProxy Configuration Reference
+
+### Entry Proxy (egress/entry/haproxy.cfg.template)
+
+- **Auth**: Validates `X-Upstream-Proxy-Secret` header via `http-request return status 401`
+- **Rate limit key**: `Authorization` header, falls back to `?k=` query param
+- **Rate limit**: Stick table with `http_req_rate(60s)`, threshold 90 (60 sustained + 30 burst)
+- **Metrics**: Prometheus exporter on port 8404 at `/metrics`
+- **Secret injection**: `${UPSTREAM_PROXY_SECRET}` substituted at container startup via `envsubst`
+
+### Worker Proxy (egress/worker/haproxy.cfg)
+
+- **Global rate limit**: Stick table with fixed `"global"` key, threshold 130 (120 + 10 burst)
+- **Upstream**: TLS to `osu.ppy.sh:443` with SNI and certificate verification
+- **DNS resolution**: Uses Docker embedded DNS (127.0.0.11) with periodic re-resolution
+- **Header stripping**: Removes `X-Upstream-Proxy-Secret` before forwarding upstream
+- **Metrics**: Prometheus exporter on port 8404 at `/metrics`
+
 ## Leaving the Swarm
 
 A node can leave the swarm without affecting standalone containers that were running
@@ -233,5 +314,5 @@ docker swarm leave --force
 Swarm-managed services and overlay networks are removed. Standalone containers on
 standard bridge/host networking are unaffected.
 
-**Caveat:** If any standalone container is attached to a swarm overlay network
-(via `attachable: true`), it will lose that network interface when the node leaves.
+**Caveat:** If any standalone container is attached to the `osu-proxy` overlay network
+(via `--attachable`), it will lose that network interface when the node leaves.

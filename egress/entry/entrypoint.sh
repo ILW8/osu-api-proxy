@@ -6,7 +6,8 @@ if [ -z "$UPSTREAM_PROXY_SECRET" ]; then
     exit 1
 fi
 
-# Substitute only our env var — leaves Nginx $variables intact
-envsubst '${UPSTREAM_PROXY_SECRET}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
+envsubst '${UPSTREAM_PROXY_SECRET}' \
+    < /usr/local/etc/haproxy/haproxy.cfg.template \
+    > /usr/local/etc/haproxy/haproxy.cfg
 
-exec nginx -g 'daemon off;'
+exec haproxy -f /usr/local/etc/haproxy/haproxy.cfg

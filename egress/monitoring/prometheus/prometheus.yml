@@ -1,0 +1,15 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'haproxy-entry'
+    dns_sd_configs:
+      - names: ['tasks.osu-proxy_entry']
+        type: A
+        port: 8404
+
+  - job_name: 'haproxy-worker'
+    dns_sd_configs:
+      - names: ['tasks.osu-proxy_worker']
+        type: A
+        port: 8404

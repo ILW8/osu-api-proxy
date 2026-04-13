@@ -24,6 +24,5 @@ services:
 
 networks:
   proxy:
-    driver: overlay
-    driver_opts:
-      com.docker.network.driver.mtu: "1230"
+    external: true
+    name: osu-proxy

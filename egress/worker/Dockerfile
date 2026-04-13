@@ -1,3 +1,3 @@
-FROM nginx:alpine
-COPY nginx.conf /etc/nginx/nginx.conf
-CMD ["nginx", "-g", "daemon off;"]
+FROM haproxy:lts-alpine
+COPY haproxy.cfg /usr/local/etc/haproxy/haproxy.cfg
+CMD ["haproxy", "-f", "/usr/local/etc/haproxy/haproxy.cfg"]

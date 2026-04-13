@@ -1,0 +1,45 @@
+global
+    log stdout format raw local0 info
+    maxconn 1024
+
+defaults
+    log     global
+    mode    http
+    option  httplog
+    option  dontlognull
+    timeout connect 5s
+    timeout client  30s
+    timeout server  65s
+
+# Prometheus metrics
+frontend stats
+    bind *:8404
+    http-request use-service prometheus-exporter if { path /metrics }
+    no log
+
+# Stick table for per-token rate limiting
+backend per_token_rates
+    stick-table type string len 512 size 10k expire 120s store http_req_rate(60s)
+
+frontend entry
+    bind *:8080
+
+    # 1. Extract rate-limit key: Authorization header, fallback to ?k= param
+    http-request set-var(txn.rate_key) hdr(Authorization)
+    http-request set-var(txn.rate_key) url_param(k) if !{ var(txn.rate_key) -m found }
+
+    # 2. Auth: return 401 if secret is missing/wrong (uses "return" so it does NOT
+    #    increment denied_req_total — lets us separate auth failures from rate-limit hits)
+    http-request return status 401 content-type "text/plain" string "Unauthorized\n" \
+        unless { hdr(X-Upstream-Proxy-Secret) -m str "${UPSTREAM_PROXY_SECRET}" }
+
+    # 3. Track per-token rate (only reached by authenticated requests)
+    http-request track-sc0 var(txn.rate_key) table per_token_rates
+
+    # 4. Rate limit: deny 429 (increments denied_req_total)
+    http-request deny deny_status 429 if { sc_http_req_rate(0,per_token_rates) gt 90 }
+
+    default_backend workers
+
+backend workers
+    server worker worker:8081 check inter 5s
