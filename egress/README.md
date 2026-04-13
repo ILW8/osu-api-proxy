@@ -40,9 +40,10 @@ pushes packets over the limit. Symptom: DNS resolution works between containers 
 requests to containers on other nodes time out (small packets fit, large packets are
 silently dropped).
 
-The `stack.yml` sets the overlay MTU to 1370 to account for this. If you change VPN
-providers or encounter similar symptoms, adjust `com.docker.network.driver.mtu` in
-the stack file. Note: MTU cannot be changed on an existing overlay network -- you must
+The `stack.yml` sets the overlay MTU to 1230 to account for this (Tailscale MTU 1280
+minus 50 bytes VXLAN overhead). If your VPN uses a different MTU, adjust the formula:
+`overlay MTU = VPN MTU - 50`. Check your VPN MTU with `ip link show tailscale0` (or
+your VPN interface). Adjust `com.docker.network.driver.mtu` in the stack file accordingly. Note: MTU cannot be changed on an existing overlay network -- you must
 remove and redeploy the stack:
 
 ```bash
