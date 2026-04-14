@@ -10,9 +10,7 @@ services:
     ports:
       - "8080:8080"
     secrets:
-      - source: users_map
-        target: /usr/local/etc/haproxy/users.map
-        mode: 0444
+      - users_map
     healthcheck:
       test: ["CMD", "wget", "-qO", "/dev/null", "http://localhost:8404/metrics"]
       interval: 5s

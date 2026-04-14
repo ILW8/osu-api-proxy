@@ -48,7 +48,7 @@ update_users() {
     docker service update --secret-rm users_map "${STACK_NAME}_entry"
     docker secret rm users_map
     docker secret create users_map ./users.map
-    docker service update --secret-add source=users_map,target=/usr/local/etc/haproxy/users.map,mode=0444 "${STACK_NAME}_entry"
+    docker service update --secret-add users_map "${STACK_NAME}_entry"
 }
 
 update_monitoring() {
