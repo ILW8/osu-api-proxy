@@ -45,10 +45,31 @@ update_worker() {
 
 update_users() {
     echo "==> Rotating users_map secret..."
-    docker service update --secret-rm users_map "${STACK_NAME}_entry"
-    docker secret rm users_map
-    docker secret create users_map ./users.map
-    docker service update --secret-add users_map "${STACK_NAME}_entry"
+
+    # Create new secret with timestamped name
+    new_name="users_map_$(date +%s)"
+    docker secret create "$new_name" ./users.map
+
+    # Find the current secret name (may be "users_map" or "users_map_<timestamp>")
+    current_name=$(docker service inspect "${STACK_NAME}_entry" \
+        --format '{{range .Spec.TaskTemplate.ContainerSpec.Secrets}}{{if eq .File.Name "users_map"}}{{.SecretName}}{{end}}{{end}}')
+
+    if [ -z "$current_name" ]; then
+        echo "ERROR: no users_map secret found on ${STACK_NAME}_entry" >&2
+        docker secret rm "$new_name"
+        exit 1
+    fi
+
+    # Atomic swap: remove old + add new in one update (container never lacks the secret)
+    docker service update \
+        --secret-rm "$current_name" \
+        --secret-add "source=$new_name,target=users_map" \
+        "${STACK_NAME}_entry"
+
+    # Clean up old secret
+    docker secret rm "$current_name" 2>/dev/null || true
+
+    echo "==> Rotated: $current_name -> $new_name"
 }
 
 update_monitoring() {
