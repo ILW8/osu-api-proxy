@@ -1,0 +1,9 @@
+# Map of per-user secrets to usernames.
+# Format: <secret> <username>
+# The secret is sent via X-Upstream-Proxy-Secret header.
+# The username is used as the rate-limit key (for v2 API) and appears in logs.
+#
+# Generate secrets with: openssl rand -hex 32
+#
+# change-me-alice alice
+# change-me-bob bob

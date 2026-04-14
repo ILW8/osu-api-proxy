@@ -6,11 +6,12 @@ PLATFORM="${PLATFORM:-linux/amd64,linux/arm64}"
 STACK_NAME="${STACK_NAME:-osu-proxy}"
 
 usage() {
-    echo "Usage: $0 [entry|worker|monitoring|all]"
+    echo "Usage: $0 [entry|worker|monitoring|users|all]"
     echo ""
     echo "  entry       Build and update the entry proxy service"
     echo "  worker      Build and update the worker proxy service"
     echo "  monitoring  Update the monitoring stack (Prometheus + Grafana)"
+    echo "  users       Rotate the users.map Docker secret from ./users.map"
     echo "  all         Build and update everything"
     echo ""
     echo "Environment variables:"
@@ -42,6 +43,14 @@ update_worker() {
     docker service update --with-registry-auth --force --image "$REGISTRY/osu-proxy-worker:latest" "${STACK_NAME}_worker"
 }
 
+update_users() {
+    echo "==> Rotating users_map secret..."
+    docker service update --secret-rm users_map "${STACK_NAME}_entry"
+    docker secret rm users_map
+    docker secret create users_map ./users.map
+    docker service update --secret-add source=users_map,target=/usr/local/etc/haproxy/users.map,mode=0444 "${STACK_NAME}_entry"
+}
+
 update_monitoring() {
     echo "==> Updating monitoring stack..."
     docker stack deploy --resolve-image always -c monitoring/stack.yml osu-monitoring
@@ -60,6 +69,9 @@ case "${1:-}" in
         ;;
     monitoring)
         update_monitoring
+        ;;
+    users)
+        update_users
         ;;
     all)
         build_entry
