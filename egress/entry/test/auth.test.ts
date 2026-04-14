@@ -1,0 +1,68 @@
+import { describe, it } from "node:test";
+import * as assert from "node:assert/strict";
+import { validateAuth } from "../src/auth.js";
+import { computeHmac } from "../src/hmac.js";
+
+const SECRET = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
+const USERS: Record<string, string> = { alice: SECRET };
+
+function makeAuthHeader(
+  userId: string,
+  secret: string,
+  timestamp?: number,
+  nonce?: string,
+): string {
+  const ts = (timestamp ?? Math.floor(Date.now() / 1000)).toString();
+  const n = nonce ?? "test-nonce";
+  const digest = computeHmac(secret, `${ts}:${n}`);
+  return `HMAC ${userId}:${ts}:${n}:${digest}`;
+}
+
+describe("validateAuth", () => {
+  it("accepts a valid HMAC auth header", () => {
+    const header = makeAuthHeader("alice", SECRET);
+    const result = validateAuth(header, USERS);
+    assert.equal(result.valid, true);
+    assert.equal(result.userId, "alice");
+  });
+
+  it("rejects missing header", () => {
+    const result = validateAuth(undefined, USERS);
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects unknown user", () => {
+    const header = makeAuthHeader("eve", SECRET);
+    const result = validateAuth(header, USERS);
+    assert.equal(result.valid, false);
+    assert.match(result.error!, /unknown user/);
+  });
+
+  it("rejects expired timestamp", () => {
+    const oldTimestamp = Math.floor(Date.now() / 1000) - 120;
+    const header = makeAuthHeader("alice", SECRET, oldTimestamp);
+    const result = validateAuth(header, USERS);
+    assert.equal(result.valid, false);
+    assert.match(result.error!, /timestamp/);
+  });
+
+  it("rejects wrong signature", () => {
+    const ts = Math.floor(Date.now() / 1000).toString();
+    const header = `HMAC alice:${ts}:nonce:${"0".repeat(64)}`;
+    const result = validateAuth(header, USERS);
+    assert.equal(result.valid, false);
+    assert.match(result.error!, /signature/);
+  });
+
+  it("rejects non-HMAC scheme", () => {
+    const result = validateAuth("Basic dXNlcjpwYXNz", USERS);
+    assert.equal(result.valid, false);
+  });
+
+  it("accepts timestamps within 60s tolerance", () => {
+    const ts = Math.floor(Date.now() / 1000) - 50;
+    const header = makeAuthHeader("alice", SECRET, ts);
+    const result = validateAuth(header, USERS);
+    assert.equal(result.valid, true);
+  });
+});
