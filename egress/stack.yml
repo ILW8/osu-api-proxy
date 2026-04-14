@@ -12,7 +12,7 @@ services:
     secrets:
       - users_map
     healthcheck:
-      test: ["CMD", "wget", "-qO", "/dev/null", "http://localhost:8404/metrics"]
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:8404/metrics"]
       interval: 5s
       timeout: 3s
       retries: 2
@@ -30,7 +30,7 @@ services:
   worker:
     image: ${REGISTRY:-localhost:5000}/osu-proxy-worker:latest
     healthcheck:
-      test: ["CMD", "wget", "-qO", "/dev/null", "http://localhost:8404/metrics"]
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:8404/metrics"]
       interval: 5s
       timeout: 3s
       retries: 2
