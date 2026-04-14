@@ -15,6 +15,13 @@ histogram haproxy_throttle_delay_milliseconds by frontend buckets 50, 100, 250, 
     haproxy_http_duration_milliseconds[$frontend] = $duration
 }
 
+# Per-user request counter (from entry proxy's user= log field)
+counter haproxy_http_requests_by_user_total by user
+
+/user=(?P<user>\S+)/ {
+    haproxy_http_requests_by_user_total[$user]++
+}
+
 # Throttle delay appended to log line as throttle_ms=<N>
 /\] (?P<frontend>\S+) \S+\/\S+ .* throttle_ms=(?P<throttle_ms>\d+)/ {
     $throttle_ms > 0 {

@@ -209,6 +209,38 @@
       ]
     },
     {
+      "title": "Entry — Requests per User (via mtail)",
+      "description": "Request count per user (from users.map identity) in 15 s windows",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "bars",
+            "barAlignment": 0,
+            "fillOpacity": 80,
+            "stacking": { "mode": "normal" }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "(haproxy_http_requests_by_user_total - haproxy_http_requests_by_user_total offset 15s) > 0",
+          "legendFormat": "{{user}}",
+          "interval": "15s",
+          "refId": "A"
+        }
+      ]
+    },
+    {
       "title": "Workers — Response Codes (via mtail)",
       "description": "Per-status-code response count in 15 s windows across all workers",
       "type": "timeseries",
