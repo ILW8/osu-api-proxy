@@ -5,20 +5,24 @@ dedicated egress IPs instead of Cloudflare's shared pool. Includes Prometheus me
 and Grafana dashboards for observability.
 
 ```
-CF Worker --> entry HAProxy (auth + per-token rate limit) --> worker HAProxy (global rate limit) --> osu.ppy.sh
-                 :8404 /metrics                                   :8404 /metrics
-                        \                                        /
-                         `-----> Prometheus -----> Grafana :3000
+CF Worker / User --> entry HAProxy (per-user auth + throttle) --> worker HAProxy (global rate limit) --> osu.ppy.sh
+                         :8404 HAProxy metrics                       :8404 HAProxy metrics
+                         :3903 mtail metrics                         :3903 mtail metrics
+                                \                                   /
+                                 `-----> Prometheus -----> Grafana :3000
 ```
 
-- **Entry service**: Pinned to nodes with a public IP. Validates `X-Upstream-Proxy-Secret`,
-  rate-limits at 90 req/min per osu! API token (keyed on `Authorization` header for API v2,
-  `?k=` query param for API v1). Forwards to the worker service via Swarm overlay network.
+- **Entry service**: Pinned to nodes with a public IP. Authenticates users via
+  `X-Upstream-Proxy-Secret` header validated against a per-user map file (`users.map`,
+  deployed as a Docker secret). Rate-limits per user identity (for API v2) or per `?k=`
+  param (for API v1) with Lua-based progressive throttling at 60 req/min sustained.
+  Forwards to the worker service via Swarm overlay network.
 - **Worker service**: Runs on every swarm node (`mode: global`). Enforces 130 req/min global
   rate limit per worker, then forwards to `osu.ppy.sh` over TLS with SNI. Each node uses
   its own egress IP.
-- **Monitoring**: Prometheus scrapes HAProxy metrics from all proxies. Grafana provides
-  dashboards for request rates, rate-limit denials, and backend response times.
+- **Monitoring**: Prometheus scrapes HAProxy's built-in exporter (port 8404) and mtail
+  (port 3903) on all proxies. mtail parses HAProxy access logs for per-status-code metrics,
+  per-user request counts, and response duration histograms. Grafana provides dashboards.
 
 ## Prerequisites
 
@@ -124,10 +128,30 @@ docker node update --label-add public=true <node-id>
 
 The entry service is constrained to nodes with this label.
 
-### 3. Deploy the proxy stack
+### 3. Create the users.map Docker secret
+
+Create a `users.map` file mapping per-user secrets to usernames:
+
+```
+# Generate a secret for each user:
+# openssl rand -hex 32
+
+<alice-secret> alice
+<bob-secret> bob
+<cf-worker-secret> cf-worker
+```
+
+Then create the Docker secret:
 
 ```bash
-export UPSTREAM_PROXY_SECRET="$(openssl rand -hex 32)"
+docker secret create users_map ./users.map
+```
+
+To update users later, use `./deploy.sh users` (see [Updating](#updating)).
+
+### 4. Deploy the proxy stack
+
+```bash
 export REGISTRY="ghcr.io/<user>"
 
 docker stack deploy -c stack.yml osu-proxy --with-registry-auth
@@ -137,7 +161,7 @@ The `--with-registry-auth` flag is required when using a private registry. It di
 the manager's registry credentials to worker nodes via the Swarm raft log. Without it,
 worker nodes fail to pull images even if they are individually authenticated.
 
-### 4. Deploy the monitoring stack
+### 5. Deploy the monitoring stack
 
 ```bash
 cd monitoring
@@ -145,7 +169,7 @@ export GRAFANA_ADMIN_PASSWORD="your-secure-password"
 docker stack deploy -c stack.yml osu-monitoring
 ```
 
-### 5. Verify
+### 6. Verify
 
 ```bash
 # Check all replicas are running
@@ -161,20 +185,21 @@ docker service logs osu-proxy_entry
 docker service logs osu-proxy_worker
 ```
 
-### 6. Test
+### 7. Test
 
 ```bash
 # Should return 401 (no proxy secret)
 curl -v http://<entry-ip>:8080/api/v2/me
 
-# Should return osu! API response
+# Should return osu! API response (use a secret from your users.map)
 curl -v \
-  -H "X-Upstream-Proxy-Secret: $UPSTREAM_PROXY_SECRET" \
+  -H "X-Upstream-Proxy-Secret: <user-secret>" \
   -H "Authorization: Bearer <osu-token>" \
   http://<entry-ip>:8080/api/v2/me
 
-# Check Prometheus metrics endpoint
-curl http://<entry-ip>:8404/metrics
+# Check Prometheus metrics endpoints
+curl http://<entry-ip>:8404/metrics   # HAProxy built-in exporter
+curl http://<entry-ip>:3903/metrics   # mtail (per-status-code, duration)
 ```
 
 ## Monitoring
@@ -196,25 +221,36 @@ Grafana is accessible on port 3000. The default credentials are `admin` / the va
 A pre-provisioned dashboard ("osu! API Proxy") is available in the `osu-proxy` folder
 with these panels:
 
-- **Entry Request Rate**: Total requests/s hitting the entry proxy
-- **Workers Request Rate**: Per-worker requests/s (one line per swarm node)
-- **Entry Rate Limit Denials**: Per-token rate limit hits (429s) at the entry
+- **Entry/Workers Request Rate**: Requests/s at each tier
+- **Entry Denied Requests**: Auth failures (401) and path denials (403)
 - **Workers Rate Limit Denials**: Per-worker global rate limit hits (429s)
-- **Entry Auth Failures**: Requests rejected for invalid proxy secret (401s)
-- **Backend Response Time**: Average upstream response time from osu.ppy.sh
-
-**Metric separation:** Auth failures use `http-request return` (not counted in
-`denied_req_total`), while rate-limit denials use `http-request deny` (counted in
-`denied_req_total`). This allows clean separation in Grafana queries.
+- **Workers Rate Limit Utilization**: Percentage of each worker's 130 req/min limit used
+- **Entry Throttled Requests**: Requests delayed by Lua throttle
+- **Entry Throttle Delay**: p50/p95 injected delay when throttling is active
+- **Entry Response Codes** (via mtail): Per-status-code breakdown (200, 401, 403, 429, etc.)
+- **Entry Requests per User** (via mtail): Per-user request count from users.map identity
+- **Workers Response Codes** (via mtail): Per-status-code breakdown across all workers
+- **Response Duration per Worker** (via mtail): p50/p95 request duration from HAProxy logs
 
 ### Prometheus Metric Reference
+
+**HAProxy built-in exporter** (port 8404):
 
 | Metric | Description |
 |---|---|
 | `haproxy_frontend_http_requests_total` | Total HTTP requests per frontend |
-| `haproxy_frontend_denied_req_total` | Requests denied by ACLs (rate limits only, not auth) |
-| `haproxy_frontend_http_responses_total{code="4xx"}` | All 4xx responses (auth failures + rate limits) |
-| `haproxy_backend_response_time_average_seconds` | Average backend response time |
+| `haproxy_frontend_denied_req_total` | Requests denied by ACLs (auth + rate limits) |
+| `haproxy_frontend_http_responses_total{code="4xx"}` | All 4xx responses by class |
+
+**mtail** (port 3903, parsed from HAProxy access logs):
+
+| Metric | Description |
+|---|---|
+| `haproxy_http_responses_total{frontend, status}` | Per-individual-status-code response count |
+| `haproxy_http_duration_milliseconds_bucket{frontend}` | Request duration histogram |
+| `haproxy_http_requests_by_user_total{user}` | Per-user request count (entry only) |
+| `haproxy_throttled_requests_total{frontend}` | Throttled request count (entry only) |
+| `haproxy_throttle_delay_milliseconds_bucket{frontend}` | Throttle delay histogram (entry only) |
 
 ## TLS with Cloudflare Tunnel
 
@@ -260,21 +296,24 @@ wrangler secret put OSU_ORIGIN
 # Enter: https://osu-proxy.yourdomain.com (tunnel) or http://<entry-ip>:8080 (direct)
 
 wrangler secret put UPSTREAM_PROXY_SECRET
-# Enter: the secret from the deploy step
+# Enter: one of the per-user secrets from your users.map file
 ```
 
 When these env vars are not set, the CF Worker connects directly to `osu.ppy.sh` as before.
 
 ## Updating
 
-After modifying configs, rebuild and push images, then force the services to pull:
+Use `deploy.sh` for routine updates:
 
 ```bash
-docker service update --force osu-proxy_entry
-docker service update --force osu-proxy_worker
+./deploy.sh entry       # Rebuild + update entry proxy
+./deploy.sh worker      # Rebuild + update worker proxy
+./deploy.sh monitoring  # Redeploy monitoring stack (config changes)
+./deploy.sh users       # Rotate the users.map Docker secret
+./deploy.sh all         # Rebuild + update everything
 ```
 
-Or redeploy the entire stack:
+Or redeploy the entire stack manually:
 
 ```bash
 docker stack deploy -c stack.yml osu-proxy --with-registry-auth
@@ -282,13 +321,14 @@ docker stack deploy -c stack.yml osu-proxy --with-registry-auth
 
 ## HAProxy Configuration Reference
 
-### Entry Proxy (egress/entry/haproxy.cfg.template)
+### Entry Proxy (egress/entry/haproxy.cfg)
 
-- **Auth**: Validates `X-Upstream-Proxy-Secret` header via `http-request return status 401`
-- **Rate limit key**: `Authorization` header, falls back to `?k=` query param
-- **Rate limit**: Stick table with `http_req_rate(60s)`, threshold 90 (60 sustained + 30 burst)
-- **Metrics**: Prometheus exporter on port 8404 at `/metrics`
-- **Secret injection**: `${UPSTREAM_PROXY_SECRET}` substituted at container startup via `envsubst`
+- **Auth**: Validates `X-Upstream-Proxy-Secret` against `users.map` (Docker secret at `/run/secrets/users_map`), returns 401 if not found
+- **Path filtering**: Only allows `/api/*` and `/oauth/token*`, returns 403 otherwise
+- **Rate limit key**: User identity from users.map (for v2 API), `?k=` query param (for v1 API)
+- **Throttling**: Lua-based progressive delay when per-user rate exceeds 60 req/min sustained
+- **Metrics**: HAProxy Prometheus exporter on port 8404, mtail on port 3903
+- **Logging**: Dual output to stdout (Docker logs) and syslog (mtail), with user identity and throttle delay in log format
 
 ### Worker Proxy (egress/worker/haproxy.cfg)
 
@@ -296,7 +336,7 @@ docker stack deploy -c stack.yml osu-proxy --with-registry-auth
 - **Upstream**: TLS to `osu.ppy.sh:443` with SNI and certificate verification
 - **DNS resolution**: Uses Docker embedded DNS (127.0.0.11) with periodic re-resolution
 - **Header stripping**: Removes `X-Upstream-Proxy-Secret` before forwarding upstream
-- **Metrics**: Prometheus exporter on port 8404 at `/metrics`
+- **Metrics**: HAProxy Prometheus exporter on port 8404, mtail on port 3903
 
 ## Leaving the Swarm
 

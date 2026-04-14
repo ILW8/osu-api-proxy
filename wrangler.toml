@@ -27,4 +27,4 @@ new_sqlite_classes = ["UpstreamRateLimiter"]
 # Cloudflare's IP pool. Set both to enable.
 # [vars]
 # OSU_ORIGIN = "http://<your-entry-server-ip>:8080"
-# UPSTREAM_PROXY_SECRET = "your-shared-secret"
+# UPSTREAM_PROXY_SECRET = "a-per-user-secret-from-users.map"
