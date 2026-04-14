@@ -10,4 +10,4 @@ sleep 1
 # Start mtail to extract per-status-code metrics from logs
 mtail --progs /etc/mtail --logs /var/log/haproxy.log --port 3903 &
 
-exec haproxy -db -f /usr/local/etc/haproxy/haproxy.cfg
+exec haproxy -f /usr/local/etc/haproxy/haproxy.cfg
