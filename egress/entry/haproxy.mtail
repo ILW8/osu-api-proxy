@@ -1,0 +1,31 @@
+# Extract per-status-code metrics and response duration from HAProxy httplog lines.
+# Runs via mtail, fed by syslogd capturing HAProxy's syslog output.
+
+counter haproxy_http_responses_total by frontend, status
+histogram haproxy_http_duration_milliseconds by frontend buckets 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000
+
+counter haproxy_throttled_requests_total by frontend
+histogram haproxy_throttle_delay_milliseconds by frontend buckets 50, 100, 250, 500, 1000, 2000, 3000, 5000, 10000
+
+# HAProxy httplog (after syslog prefix):
+#   client:port [timestamp] frontend backend/server TR/Tw/Tc/Tr/Ta status ...
+# Ta (total active time in ms) is the last field in the timing group.
+/\S+:\d+ \[\d+\/\w+\/\d+:\d+:\d+:\d+\.\d+\] (?P<frontend>\S+) \S+\/\S+ [-\d]+\/[-\d]+\/[-\d]+\/[-\d]+\/(?P<duration>\d+) (?P<status>\d{3}) / {
+    haproxy_http_responses_total[$frontend][$status]++
+    haproxy_http_duration_milliseconds[$frontend] = $duration
+}
+
+# Per-user request counter (from entry proxy's user= log field)
+counter haproxy_http_requests_by_user_total by user
+
+/user=(?P<user>\S+)/ {
+    haproxy_http_requests_by_user_total[$user]++
+}
+
+# Throttle delay appended to log line as throttle_ms=<N>
+/\] (?P<frontend>\S+) \S+\/\S+ .* throttle_ms=(?P<throttle_ms>\d+)/ {
+    $throttle_ms > 0 {
+        haproxy_throttled_requests_total[$frontend]++
+        haproxy_throttle_delay_milliseconds[$frontend] = $throttle_ms
+    }
+}

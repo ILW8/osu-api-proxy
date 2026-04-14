@@ -1,0 +1,62 @@
+version: "3.8"
+
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - prometheus_data:/prometheus
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://localhost:9090/-/healthy"]
+      interval: 5s
+      timeout: 3s
+      retries: 2
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      update_config:
+        order: stop-first
+        failure_action: rollback
+    networks:
+      - proxy
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://localhost:3000/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 2
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      update_config:
+        order: start-first
+        failure_action: rollback
+    networks:
+      - proxy
+
+volumes:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  proxy:
+    external: true
+    name: osu-proxy

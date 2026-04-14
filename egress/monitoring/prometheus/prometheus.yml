@@ -1,0 +1,27 @@
+global:
+  scrape_interval: 3s
+
+scrape_configs:
+  - job_name: 'haproxy-entry'
+    dns_sd_configs:
+      - names: ['tasks.osu-proxy_entry']
+        type: A
+        port: 8404
+
+  - job_name: 'haproxy-worker'
+    dns_sd_configs:
+      - names: ['tasks.osu-proxy_worker']
+        type: A
+        port: 8404
+
+  - job_name: 'mtail-entry'
+    dns_sd_configs:
+      - names: ['tasks.osu-proxy_entry']
+        type: A
+        port: 3903
+
+  - job_name: 'mtail-worker'
+    dns_sd_configs:
+      - names: ['tasks.osu-proxy_worker']
+        type: A
+        port: 3903

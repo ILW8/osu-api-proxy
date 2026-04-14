@@ -1,0 +1,371 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "title": "Entry — Request Rate",
+      "description": "Total HTTP requests per second hitting the entry proxy",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single" }
+      },
+      "targets": [
+        {
+          "expr": "rate(haproxy_frontend_http_requests_total{proxy=\"entry\"}[15s])",
+          "legendFormat": "entry requests/s",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Workers — Request Rate (per instance)",
+      "description": "HTTP requests per second per worker node",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single" }
+      },
+      "targets": [
+        {
+          "expr": "rate(haproxy_frontend_http_requests_total{proxy=\"worker\"}[15s])",
+          "legendFormat": "{{instance}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Entry — Denied Requests",
+      "description": "Requests denied at the entry proxy (auth 401s + path 403s). Rate-limit denials replaced by throttling.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "color": { "fixedColor": "red", "mode": "fixed" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single" }
+      },
+      "targets": [
+        {
+          "expr": "rate(haproxy_frontend_denied_req_total{proxy=\"entry\"}[15s])",
+          "legendFormat": "denied/s",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Workers — Rate Limit Denials (per instance)",
+      "description": "Requests denied by per-worker global rate limit (429s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single" }
+      },
+      "targets": [
+        {
+          "expr": "rate(haproxy_frontend_denied_req_total{proxy=\"worker\"}[15s])",
+          "legendFormat": "{{instance}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Entry — Throttled Requests",
+      "description": "Requests per second delayed by Lua throttle (rate exceeded 60 req/60s sustained limit)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "color": { "fixedColor": "orange", "mode": "fixed" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single" }
+      },
+      "targets": [
+        {
+          "expr": "rate(haproxy_throttled_requests_total{frontend=\"entry\"}[15s])",
+          "legendFormat": "throttled/s",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Entry — Throttle Delay (via mtail)",
+      "description": "p50 and p95 Lua throttle delay injected at the entry proxy when per-token rate exceeds sustained limit",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byRegexp", "options": ".*p50$" },
+            "properties": [
+              { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } },
+              { "id": "custom.lineWidth", "value": 1 }
+            ]
+          },
+          {
+            "matcher": { "id": "byRegexp", "options": ".*p95$" },
+            "properties": [
+              { "id": "custom.lineWidth", "value": 2 }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, rate(haproxy_throttle_delay_milliseconds_bucket{frontend=\"entry\"}[15s]))",
+          "legendFormat": "entry p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, rate(haproxy_throttle_delay_milliseconds_bucket{frontend=\"entry\"}[15s]))",
+          "legendFormat": "entry p95",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "title": "Entry — Response Codes (via mtail)",
+      "description": "Per-status-code response count in 15 s windows from HAProxy access logs",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "bars",
+            "barAlignment": 0,
+            "fillOpacity": 80,
+            "stacking": { "mode": "normal" }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "(haproxy_http_responses_total{frontend=\"entry\"} - haproxy_http_responses_total{frontend=\"entry\"} offset 15s) > 0",
+          "legendFormat": "{{status}}",
+          "interval": "15s",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Entry — Requests per User (via mtail)",
+      "description": "Request count per user (from users.map identity) in 15 s windows",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "bars",
+            "barAlignment": 0,
+            "fillOpacity": 80,
+            "stacking": { "mode": "normal" }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "(haproxy_http_requests_by_user_total - haproxy_http_requests_by_user_total offset 15s) > 0",
+          "legendFormat": "{{user}}",
+          "interval": "15s",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Workers — Response Codes (via mtail)",
+      "description": "Per-status-code response count in 15 s windows across all workers",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "bars",
+            "barAlignment": 0,
+            "fillOpacity": 80,
+            "stacking": { "mode": "normal" }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "sum by (status) (haproxy_http_responses_total{frontend=\"worker\"} - haproxy_http_responses_total{frontend=\"worker\"} offset 15s) > 0",
+          "legendFormat": "{{status}}",
+          "interval": "15s",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Workers — Rate Limit Utilization",
+      "description": "Percentage of each worker's global rate limit currently used (threshold: 130 req/60s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": { "mode": "palette-classic" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 60 },
+              { "color": "red", "value": 85 }
+            ]
+          },
+          "custom": {
+            "thresholdsStyle": { "mode": "line" }
+          },
+          "max": 120
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single" }
+      },
+      "targets": [
+        {
+          "expr": "rate(haproxy_frontend_http_requests_total{proxy=\"worker\"}[15s]) * 60 / 130 * 100",
+          "legendFormat": "{{instance}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Response Duration per Worker (via mtail)",
+      "description": "Per-worker request duration from HAProxy access logs (Ta field). Solid lines = p95, dashed = p50.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byRegexp", "options": ".*p50$" },
+            "properties": [
+              { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } },
+              { "id": "custom.lineWidth", "value": 1 }
+            ]
+          },
+          {
+            "matcher": { "id": "byRegexp", "options": ".*p95$" },
+            "properties": [
+              { "id": "custom.lineWidth", "value": 2 }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum by (le, instance) (rate(haproxy_http_duration_milliseconds_bucket{frontend=\"worker\"}[15s])))",
+          "legendFormat": "{{instance}} p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, instance) (rate(haproxy_http_duration_milliseconds_bucket{frontend=\"worker\"}[15s])))",
+          "legendFormat": "{{instance}} p95",
+          "refId": "B"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["haproxy", "osu-proxy"],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "osu! API Proxy",
+  "uid": "osu-proxy-haproxy",
+  "version": 1
+}

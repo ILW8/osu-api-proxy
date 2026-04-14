@@ -1,3 +1,5 @@
 node_modules/
 .wrangler/
 .dev.vars
+egress/.env
+egress/users.map

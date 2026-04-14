@@ -22,3 +22,9 @@ bindings = [
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["UpstreamRateLimiter"]
+
+# Optional: route upstream requests through your own egress proxy instead of
+# Cloudflare's IP pool. Set both to enable.
+# [vars]
+# OSU_ORIGIN = "http://<your-entry-server-ip>:8080"
+# UPSTREAM_PROXY_SECRET = "a-per-user-secret-from-users.map"

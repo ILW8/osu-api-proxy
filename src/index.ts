@@ -14,10 +14,12 @@ import { DurableObject } from "cloudflare:workers";
 
 export interface Env {
   PROXY_SECRET?: string;
+  OSU_ORIGIN?: string;
+  UPSTREAM_PROXY_SECRET?: string;
   RATE_LIMITER: DurableObjectNamespace<UpstreamRateLimiter>;
 }
 
-const OSU_ORIGIN = "https://osu.ppy.sh";
+const DEFAULT_OSU_ORIGIN = "https://osu.ppy.sh";
 
 const ALLOWED_PREFIXES = ["/api/v2/", "/api/v2", "/oauth/token", "/api", "/api/"];
 
@@ -29,12 +31,18 @@ const QUEUE_TIMEOUT_MS = 60_000;
 const STRIP_REQUEST_HEADERS = new Set([
   "host",
   "x-proxy-secret",
+  "x-upstream-proxy-secret",
+  "x-forwarded-for",
   "cf-connecting-ip",
   "cf-ray",
   "cf-visitor",
   "cf-ipcountry",
   "cf-worker",
   "cdn-loop",
+  "content-encoding",
+  "content-length",
+  "transfer-encoding",
+  "connection"
 ]);
 
 // noinspection JSUnusedGlobalSymbols
@@ -67,13 +75,19 @@ export default {
     }
 
     url.searchParams.delete("proxy_secret");
-    const target = `${OSU_ORIGIN}${path}${url.search}`;
+    const origin = env.OSU_ORIGIN || DEFAULT_OSU_ORIGIN;
+    const target = `${origin}${path}${url.search}`;
 
     const headers = new Headers();
     for (const [key, value] of request.headers) {
       if (!STRIP_REQUEST_HEADERS.has(key.toLowerCase())) {
         headers.set(key, value);
       }
+    }
+    headers.set("User-Agent", "osu-api-proxy/1.0 (Cloudflare Worker)");
+
+    if (env.UPSTREAM_PROXY_SECRET) {
+      headers.set("X-Upstream-Proxy-Secret", env.UPSTREAM_PROXY_SECRET);
     }
 
     const init: RequestInit = {
