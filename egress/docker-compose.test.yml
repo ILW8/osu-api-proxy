@@ -1,0 +1,19 @@
+version: "3.8"
+
+services:
+  entry:
+    build: ./entry
+    ports:
+      - "18080:8080"
+    environment:
+      USERS_PATH: /run/secrets/users.json
+      WORKER_HOST: worker
+      WORKER_PORT: "8081"
+    volumes:
+      - ./test-users.json:/run/secrets/users.json:ro
+    depends_on:
+      - worker
+
+  worker:
+    build: ./worker
+    # Default config: ALLOWED_DESTINATIONS=osu.ppy.sh:443
