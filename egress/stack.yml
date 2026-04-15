@@ -1,0 +1,52 @@
+version: "3.8"
+
+secrets:
+  users_json:
+    external: true
+
+services:
+  entry:
+    image: ${REGISTRY:-localhost:5000}/osu-proxy-entry:latest
+    ports:
+      - "8080:8080"
+    secrets:
+      - users_json
+    environment:
+      USERS_PATH: /run/secrets/users_json
+      WORKER_HOST: worker
+      WORKER_PORT: "8081"
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:8404/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 2
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.public == true
+      update_config:
+        order: start-first
+        failure_action: rollback
+    networks:
+      - proxy
+
+  worker:
+    image: ${REGISTRY:-localhost:5000}/osu-proxy-worker:latest
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:8404/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 2
+    deploy:
+      mode: global
+      update_config:
+        order: start-first
+        failure_action: rollback
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
+    name: osu-proxy
