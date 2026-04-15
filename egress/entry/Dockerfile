@@ -12,5 +12,5 @@ WORKDIR /app
 COPY --from=build /app/dist/src/ ./dist/
 COPY --from=build /app/package.json /app/package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts 2>/dev/null || true
-EXPOSE 8080 8404
+EXPOSE 5080 5404
 CMD ["node", "dist/index.js"]

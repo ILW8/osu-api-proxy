@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROXY_HOST="127.0.0.1"
-PROXY_PORT="18080"
+PROXY_PORT="15080"
 USER_ID="testuser"
 SECRET="abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
 
@@ -14,7 +14,7 @@ docker compose -f docker-compose.test.yml up --build -d
 # Wait for services to be ready
 echo "==> Waiting for services..."
 for i in $(seq 1 30); do
-  if curl -sf "http://${PROXY_HOST}:18404/health" >/dev/null 2>&1; then
+  if curl -sf "http://${PROXY_HOST}:15404/health" >/dev/null 2>&1; then
     break
   fi
   sleep 1

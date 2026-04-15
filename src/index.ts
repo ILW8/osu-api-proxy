@@ -21,7 +21,7 @@ export interface Env {
   RATE_LIMITER: DurableObjectNamespace<UpstreamRateLimiter>;
   /** Entry proxy hostname or IP. Enables CONNECT tunnel mode when set. */
   CONNECT_PROXY_HOST?: string;
-  /** Entry proxy port (default: "8080"). */
+  /** Entry proxy port (default: "5080"). */
   CONNECT_PROXY_PORT?: string;
   /** User ID for HMAC authentication with the proxy. */
   CONNECT_PROXY_USER?: string;
@@ -101,7 +101,7 @@ export default {
       if (env.CONNECT_PROXY_HOST && env.CONNECT_PROXY_USER && env.CONNECT_PROXY_SECRET) {
         const tunnelConfig: TunnelConfig = {
           proxyHost: env.CONNECT_PROXY_HOST,
-          proxyPort: parseInt(env.CONNECT_PROXY_PORT || "8080", 10),
+          proxyPort: parseInt(env.CONNECT_PROXY_PORT || "5080", 10),
           proxyUser: env.CONNECT_PROXY_USER,
           proxySecret: env.CONNECT_PROXY_SECRET,
         };

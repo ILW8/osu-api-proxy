@@ -8,15 +8,15 @@ services:
   entry:
     image: ${REGISTRY:-localhost:5000}/osu-proxy-entry:latest
     ports:
-      - "8080:8080"
+      - "5080:5080"
     secrets:
       - users_json
     environment:
       USERS_PATH: /run/secrets/users_json
       WORKER_HOST: worker
-      WORKER_PORT: "8081"
+      WORKER_PORT: "5081"
     healthcheck:
-      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:8404/health"]
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:5404/health"]
       interval: 5s
       timeout: 3s
       retries: 2
@@ -34,7 +34,7 @@ services:
   worker:
     image: ${REGISTRY:-localhost:5000}/osu-proxy-worker:latest
     healthcheck:
-      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:8404/health"]
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:5404/health"]
       interval: 5s
       timeout: 3s
       retries: 2

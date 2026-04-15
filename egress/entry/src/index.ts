@@ -7,14 +7,14 @@ const users: Record<string, string> = JSON.parse(
 );
 
 const config = {
-  port: parseInt(process.env.PORT || "8080", 10),
-  healthPort: parseInt(process.env.HEALTH_PORT || "8404", 10),
+  port: parseInt(process.env.PORT || "5080", 10),
+  healthPort: parseInt(process.env.HEALTH_PORT || "5404", 10),
   users,
   allowedDestinations: new Set(
     (process.env.ALLOWED_DESTINATIONS || "osu.ppy.sh:443").split(","),
   ),
   workerHost: process.env.WORKER_HOST || "worker",
-  workerPort: parseInt(process.env.WORKER_PORT || "8081", 10),
+  workerPort: parseInt(process.env.WORKER_PORT || "5081", 10),
   rateLimitPerUser: parseInt(process.env.RATE_LIMIT_PER_USER || "60", 10),
   rateLimitWindowMs: parseInt(
     process.env.RATE_LIMIT_WINDOW_MS || "60000",

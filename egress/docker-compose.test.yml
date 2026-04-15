@@ -4,11 +4,11 @@ services:
   entry:
     build: ./entry
     ports:
-      - "18080:8080"
+      - "15080:5080"
     environment:
       USERS_PATH: /run/secrets/users.json
       WORKER_HOST: worker
-      WORKER_PORT: "8081"
+      WORKER_PORT: "5081"
     volumes:
       - ./test-users.json:/run/secrets/users.json:ro
     depends_on:
