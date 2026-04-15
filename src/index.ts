@@ -8,16 +8,28 @@
  * Upstream requests are rate-limited to 5 requests per 5 seconds (avg 1 req/s
  * with a max burst of 5 requests). Excess requests are queued and will time
  * out with 504 if they wait too long.
+ *
+ * When CONNECT_PROXY_HOST is set, requests are tunneled through a CONNECT
+ * proxy so the proxy infrastructure only sees ciphertext (end-to-end TLS).
  */
 
 import { DurableObject } from "cloudflare:workers";
+import { fetchViaTunnel, type TunnelConfig } from "./connect-tunnel.js";
 
 export interface Env {
   PROXY_SECRET?: string;
   RATE_LIMITER: DurableObjectNamespace<UpstreamRateLimiter>;
+  /** Entry proxy hostname or IP. Enables CONNECT tunnel mode when set. */
+  CONNECT_PROXY_HOST?: string;
+  /** Entry proxy port (default: "8080"). */
+  CONNECT_PROXY_PORT?: string;
+  /** User ID for HMAC authentication with the proxy. */
+  CONNECT_PROXY_USER?: string;
+  /** Shared secret (hex) for HMAC authentication with the proxy. */
+  CONNECT_PROXY_SECRET?: string;
 }
 
-const OSU_ORIGIN = "https://osu.ppy.sh";
+const DEFAULT_OSU_ORIGIN = "https://osu.ppy.sh";
 
 const ALLOWED_PREFIXES = ["/api/v2/", "/api/v2", "/oauth/token", "/api", "/api/"];
 
@@ -67,23 +79,13 @@ export default {
     }
 
     url.searchParams.delete("proxy_secret");
-    const target = `${OSU_ORIGIN}${path}${url.search}`;
 
+    // Build sanitized headers
     const headers = new Headers();
     for (const [key, value] of request.headers) {
       if (!STRIP_REQUEST_HEADERS.has(key.toLowerCase())) {
         headers.set(key, value);
       }
-    }
-
-    const init: RequestInit = {
-      method: request.method,
-      headers,
-      redirect: "follow",
-    };
-
-    if (!["GET", "HEAD"].includes(request.method)) {
-      init.body = request.body;
     }
 
     // acquire a rate-limit slot from the durable object
@@ -94,9 +96,42 @@ export default {
       return slot;
     }
 
-    // make the upstream fetch from the worker (not the DO) so that
-    // runtime placement can influence the egress IP
+    // Branch: CONNECT tunnel or direct fetch
     try {
+      if (env.CONNECT_PROXY_HOST && env.CONNECT_PROXY_USER && env.CONNECT_PROXY_SECRET) {
+        const tunnelConfig: TunnelConfig = {
+          proxyHost: env.CONNECT_PROXY_HOST,
+          proxyPort: parseInt(env.CONNECT_PROXY_PORT || "8080", 10),
+          proxyUser: env.CONNECT_PROXY_USER,
+          proxySecret: env.CONNECT_PROXY_SECRET,
+        };
+
+        const body = !["GET", "HEAD"].includes(request.method)
+          ? await request.arrayBuffer()
+          : null;
+
+        return await fetchViaTunnel(
+          tunnelConfig,
+          request.method,
+          path,
+          url.search,
+          headers,
+          body,
+        );
+      }
+
+      // Direct fetch (original behavior)
+      const target = `${DEFAULT_OSU_ORIGIN}${path}${url.search}`;
+      const init: RequestInit = {
+        method: request.method,
+        headers,
+        redirect: "follow",
+      };
+
+      if (!["GET", "HEAD"].includes(request.method)) {
+        init.body = request.body;
+      }
+
       const upstream = await fetch(target, init);
       return new Response(upstream.body, {
         status: upstream.status,
@@ -185,4 +220,3 @@ function json(status: number, body: unknown): Response {
     headers: { "Content-Type": "application/json" },
   });
 }
-
