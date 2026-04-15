@@ -16,7 +16,6 @@ const HOP_BY_HOP = new Set([
 export interface TunnelConfig {
   proxyHost: string;
   proxyPort: number;
-  proxyUser: string;
   proxySecret: string;
 }
 
@@ -53,7 +52,7 @@ export async function fetchViaTunnel(
   const connectReq =
     `CONNECT osu.ppy.sh:443 HTTP/1.1\r\n` +
     `Host: osu.ppy.sh:443\r\n` +
-    `Proxy-Authorization: HMAC ${config.proxyUser}:${timestamp}:${nonce}:${mac}\r\n` +
+    `Proxy-Authorization: HMAC ${timestamp}:${nonce}:${mac}\r\n` +
     `\r\n`;
 
   const writer = socket.writable.getWriter();

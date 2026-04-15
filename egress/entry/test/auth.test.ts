@@ -7,7 +7,6 @@ const SECRET = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789
 const USERS: Record<string, string> = { alice: SECRET };
 
 function makeAuthHeader(
-  userId: string,
   secret: string,
   timestamp?: number,
   nonce?: string,
@@ -15,12 +14,12 @@ function makeAuthHeader(
   const ts = (timestamp ?? Math.floor(Date.now() / 1000)).toString();
   const n = nonce ?? "test-nonce";
   const digest = computeHmac(secret, `${ts}:${n}`);
-  return `HMAC ${userId}:${ts}:${n}:${digest}`;
+  return `HMAC ${ts}:${n}:${digest}`;
 }
 
 describe("validateAuth", () => {
-  it("accepts a valid HMAC auth header", () => {
-    const header = makeAuthHeader("alice", SECRET);
+  it("accepts a valid HMAC auth header and identifies user", () => {
+    const header = makeAuthHeader(SECRET);
     const result = validateAuth(header, USERS);
     assert.equal(result.valid, true);
     assert.equal(result.userId, "alice");
@@ -31,16 +30,17 @@ describe("validateAuth", () => {
     assert.equal(result.valid, false);
   });
 
-  it("rejects unknown user", () => {
-    const header = makeAuthHeader("eve", SECRET);
+  it("rejects when no secret matches", () => {
+    const wrongSecret = "0".repeat(64);
+    const header = makeAuthHeader(wrongSecret);
     const result = validateAuth(header, USERS);
     assert.equal(result.valid, false);
-    assert.match(result.error!, /unknown user/);
+    assert.match(result.error!, /signature/);
   });
 
   it("rejects expired timestamp", () => {
     const oldTimestamp = Math.floor(Date.now() / 1000) - 120;
-    const header = makeAuthHeader("alice", SECRET, oldTimestamp);
+    const header = makeAuthHeader(SECRET, oldTimestamp);
     const result = validateAuth(header, USERS);
     assert.equal(result.valid, false);
     assert.match(result.error!, /timestamp/);
@@ -48,7 +48,7 @@ describe("validateAuth", () => {
 
   it("rejects wrong signature", () => {
     const ts = Math.floor(Date.now() / 1000).toString();
-    const header = `HMAC alice:${ts}:nonce:${"0".repeat(64)}`;
+    const header = `HMAC ${ts}:nonce:${"0".repeat(64)}`;
     const result = validateAuth(header, USERS);
     assert.equal(result.valid, false);
     assert.match(result.error!, /signature/);
@@ -61,7 +61,7 @@ describe("validateAuth", () => {
 
   it("accepts timestamps within 60s tolerance", () => {
     const ts = Math.floor(Date.now() / 1000) - 50;
-    const header = makeAuthHeader("alice", SECRET, ts);
+    const header = makeAuthHeader(SECRET, ts);
     const result = validateAuth(header, USERS);
     assert.equal(result.valid, true);
   });

@@ -23,8 +23,6 @@ export interface Env {
   CONNECT_PROXY_HOST?: string;
   /** Entry proxy port (default: "5080"). */
   CONNECT_PROXY_PORT?: string;
-  /** User ID for HMAC authentication with the proxy. */
-  CONNECT_PROXY_USER?: string;
   /** Shared secret (hex) for HMAC authentication with the proxy. */
   CONNECT_PROXY_SECRET?: string;
 }
@@ -98,11 +96,10 @@ export default {
 
     // Branch: CONNECT tunnel or direct fetch
     try {
-      if (env.CONNECT_PROXY_HOST && env.CONNECT_PROXY_USER && env.CONNECT_PROXY_SECRET) {
+      if (env.CONNECT_PROXY_HOST && env.CONNECT_PROXY_SECRET) {
         const tunnelConfig: TunnelConfig = {
           proxyHost: env.CONNECT_PROXY_HOST,
           proxyPort: parseInt(env.CONNECT_PROXY_PORT || "5080", 10),
-          proxyUser: env.CONNECT_PROXY_USER,
           proxySecret: env.CONNECT_PROXY_SECRET,
         };
 

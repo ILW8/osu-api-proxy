@@ -6,6 +6,13 @@ export interface AuthResult {
   error?: string;
 }
 
+/**
+ * Validate a Proxy-Authorization header of the form:
+ *   HMAC <timestamp>:<nonce>:<hex_digest>
+ *
+ * The user is identified by trying each secret in the users map
+ * until one produces a matching HMAC.
+ */
 export function validateAuth(
   authHeader: string | undefined,
   users: Record<string, string>,
@@ -21,16 +28,11 @@ export function validateAuth(
   }
 
   const parts = schemeMatch[1].split(":");
-  if (parts.length !== 4) {
+  if (parts.length !== 3) {
     return { valid: false, error: "malformed HMAC token" };
   }
 
-  const [userId, timestamp, nonce, digest] = parts;
-
-  const secret = users[userId];
-  if (!secret) {
-    return { valid: false, error: "unknown user" };
-  }
+  const [timestamp, nonce, digest] = parts;
 
   const now = nowSeconds ?? Math.floor(Date.now() / 1000);
   const ts = parseInt(timestamp, 10);
@@ -39,9 +41,11 @@ export function validateAuth(
   }
 
   const message = `${timestamp}:${nonce}`;
-  if (!verifyHmac(secret, message, digest)) {
-    return { valid: false, error: "invalid signature" };
+  for (const [userId, secret] of Object.entries(users)) {
+    if (verifyHmac(secret, message, digest)) {
+      return { valid: true, userId };
+    }
   }
 
-  return { valid: true, userId };
+  return { valid: false, error: "invalid signature" };
 }

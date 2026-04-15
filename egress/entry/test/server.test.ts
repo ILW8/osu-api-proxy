@@ -10,7 +10,6 @@ const USERS = { alice: SECRET };
 
 function makeConnectRequest(
   destination: string,
-  userId: string,
   secret: string,
 ): string {
   const ts = Math.floor(Date.now() / 1000).toString();
@@ -19,7 +18,7 @@ function makeConnectRequest(
   return (
     `CONNECT ${destination} HTTP/1.1\r\n` +
     `Host: ${destination}\r\n` +
-    `Proxy-Authorization: HMAC ${userId}:${ts}:${nonce}:${digest}\r\n\r\n`
+    `Proxy-Authorization: HMAC ${ts}:${nonce}:${digest}\r\n\r\n`
   );
 }
 
@@ -77,7 +76,7 @@ describe("Entry proxy server", () => {
     const client = connectToProxy();
     await new Promise<void>((r) => client.on("connect", r));
 
-    client.write(makeConnectRequest("osu.ppy.sh:443", "alice", SECRET));
+    client.write(makeConnectRequest("osu.ppy.sh:443", SECRET));
     const resp = (await readOnce(client)).toString();
     assert.ok(resp.startsWith("HTTP/1.1 200"), `Expected 200, got: ${resp}`);
 
@@ -107,7 +106,7 @@ describe("Entry proxy server", () => {
     const ts = Math.floor(Date.now() / 1000);
     const badAuth =
       `CONNECT osu.ppy.sh:443 HTTP/1.1\r\n` +
-      `Proxy-Authorization: HMAC alice:${ts}:nonce:${"0".repeat(64)}\r\n\r\n`;
+      `Proxy-Authorization: HMAC ${ts}:nonce:${"0".repeat(64)}\r\n\r\n`;
     client.write(badAuth);
     const resp = (await readOnce(client)).toString();
     assert.ok(resp.startsWith("HTTP/1.1 401"), `Expected 401, got: ${resp}`);
